@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="记账本">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <title>记账本</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --ink: #1f2329;
+      --muted: #8a919c;
+      --line: #e7e9ee;
+      --income: #18a058;
+      --expense: #d6493e;
+      --accent: #4c7ef3;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 0 16px calc(24px + env(safe-area-inset-bottom));
+      -webkit-font-smoothing: antialiased;
+    }
+    header {
+      padding: 20px 4px 12px;
+      padding-top: calc(20px + env(safe-area-inset-top));
+    }
+    header h1 { font-size: 20px; font-weight: 700; }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 18px 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+    }
+    .balance-label { font-size: 13px; color: var(--muted); }
+    .balance-value { font-size: 34px; font-weight: 700; margin-top: 4px; }
+    .sub-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .day { margin-bottom: 18px; }
+    .day-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); margin: 6px 4px 8px; }
+    .day-net { font-weight: 600; }
+    .entry { display: flex; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+    .entry:last-child { border-bottom: none; }
+    .entry-cat {
+      width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: #fff; background: var(--accent);
+    }
+    .entry-main { flex: 1; margin-left: 12px; min-width: 0; }
+    .entry-note { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .entry-cat-name { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .entry-amount { font-size: 16px; font-weight: 600; margin-left: 8px; white-space: nowrap; }
+    .entry-amount.income { color: var(--income); }
+    .entry-amount.expense { color: var(--expense); }
+    .empty { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 20px; line-height: 1.7; }
+    .empty button, .card button { margin-top: 16px; }
+    button {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      background: var(--accent); color: #fff; font-size: 16px; font-weight: 600;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { opacity: .85; }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+    input {
+      width: 100%; padding: 13px 12px; border: 1px solid var(--line); border-radius: 12px;
+      font-size: 16px; background: #fbfbfc; color: var(--ink);
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    .hint { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 12px; }
+    .top-bar { display: flex; align-items: center; justify-content: space-between; }
+    .link-btn { background: none; color: var(--accent); width: auto; padding: 6px 0; font-size: 14px; font-weight: 500; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="top-bar">
+      <h1>记账本</h1>
+      <button id="btn-reset" class="link-btn" onclick="resetCfg()" hidden>重新配置</button>
+    </div>
+  </header>
+
+  <!-- 查看视图 -->
+  <div id="view">
+    <div class="card">
+      <div class="balance-label">可支配余额</div>
+      <div class="balance-value" id="balance">—</div>
+      <div class="sub-row"><span>饭卡余额</span><span id="meal">—</span></div>
+    </div>
+    <div id="list"></div>
+  </div>
+
+  <!-- 配置视图 -->
+  <div id="config" hidden>
+    <div class="card">
+      <label for="in-owner">GitHub 用户名(owner)</label>
+      <input id="in-owner" type="text" placeholder="例如 laura0529" autocapitalize="none" autocorrect="off">
+      <label for="in-repo">私有数据仓库名(repo)</label>
+      <input id="in-repo" type="text" placeholder="例如 ledger-data" autocapitalize="none" autocorrect="off">
+      <label for="in-token">手机只读密钥(Contents: Read-only)</label>
+      <input id="in-token" type="password" placeholder="github_pat_…" autocapitalize="none" autocorrect="off">
+      <button onclick="saveCfg()">保存并查看</button>
+      <div class="hint">三项只存本机,不会上传;手机端仅查看、不录入。</div>
+    </div>
+  </div>
+
+  <script src="ledger-core.js"></script>
+  <script>
+    const CFG_KEY = 'ledger_mobile_cfg';
+
+    function fmt(n) {
+      const v = parseFloat(n);
+      if (Number.isNaN(v)) return '0';
+      return Number.isInteger(v) ? String(v) : v.toFixed(2);
+    }
+    function fmtMoney(n) { return '¥' + fmt(n); }
+
+    function loadCfg() {
+      try { return JSON.parse(localStorage.getItem(CFG_KEY)); } catch (e) { return null; }
+    }
+
+    function showConfig() {
+      document.getElementById('view').hidden = true;
+      document.getElementById('config').hidden = false;
+      document.getElementById('btn-reset').hidden = true;
+    }
+    function showView() {
+      document.getElementById('view').hidden = false;
+      document.getElementById('config').hidden = true;
+      document.getElementById('btn-reset').hidden = false;
+    }
+
+    function saveCfg() {
+      const cfg = {
+        owner: document.getElementById('in-owner').value.trim(),
+        repo: document.getElementById('in-repo').value.trim(),
+        token: document.getElementById('in-token').value.trim(),
+      };
+      if (!cfg.owner || !cfg.repo || !cfg.token) { alert('三项都要填'); return; }
+      localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+      loadAndRender(cfg);
+    }
+
+    function resetCfg() {
+      localStorage.removeItem(CFG_KEY);
+      document.getElementById('in-owner').value = '';
+      document.getElementById('in-repo').value = '';
+      document.getElementById('in-token').value = '';
+      showConfig();
+    }
+
+    function renderError(msg) {
+      document.getElementById('balance').textContent = '—';
+      document.getElementById('meal').textContent = '—';
+      document.getElementById('list').innerHTML = '<div class="empty">' + msg + '</div>';
+    }
+
+    function catColor(cat) {
+      // 给分类一个稳定的浅色背景配深色字,而非仅靠一个主色。
+      let h = 0;
+      for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) % 360;
+      return 'hsl(' + h + ', 60%, 55%)';
+    }
+
+    function renderEntries(groups) {
+      const listEl = document.getElementById('list');
+      listEl.innerHTML = '';
+      if (!groups.length) {
+        listEl.innerHTML = '<div class="empty">暂无流水记录</div>';
+        return;
+      }
+      for (const g of groups) {
+        let income = 0, expense = 0;
+        for (const it of g.items) {
+          const amt = parseFloat(it.amount) || 0;
+          if (it.type === '收入') income += amt; else expense += amt;
+        }
+        const net = income - expense;
+
+        const day = document.createElement('div');
+        day.className = 'card day';
+
+        const head = document.createElement('div');
+        head.className = 'day-head';
+        head.innerHTML = '<span>' + g.date + '</span><span class="day-net">' +
+          (net >= 0 ? '+' : '') + fmt(net) + '</span>';
+        day.appendChild(head);
+
+        for (const it of g.items) {
+          const row = document.createElement('div');
+          row.className = 'entry';
+          const cat = document.createElement('div');
+          cat.className = 'entry-cat';
+          cat.style.background = catColor(it.category || '其他');
+          cat.textContent = (it.category || '其他').slice(0, 2);
+          const main = document.createElement('div');
+          main.className = 'entry-main';
+          main.innerHTML = '<div class="entry-note"></div><div class="entry-cat-name"></div>';
+          main.querySelector('.entry-note').textContent = it.note || it.category || '未备注';
+          main.querySelector('.entry-cat-name').textContent = it.type + ' · ' + (it.category || '其他');
+          const amt = document.createElement('div');
+          amt.className = 'entry-amount ' + (it.type === '收入' ? 'income' : 'expense');
+          amt.textContent = (it.type === '收入' ? '+' : '-') + fmt(it.amount);
+          row.appendChild(cat);
+          row.appendChild(main);
+          row.appendChild(amt);
+          day.appendChild(row);
+        }
+        listEl.appendChild(day);
+      }
+    }
+
+    async function loadAndRender(cfg) {
+      showView();
+      document.getElementById('balance').textContent = '加载中…';
+      document.getElementById('meal').textContent = '…';
+      document.getElementById('list').innerHTML = '<div class="empty">正在拉取数据…</div>';
+      try {
+        const ledger = await fetchLedger(cfg.owner, cfg.repo, cfg.token);
+        document.getElementById('balance').textContent = fmtMoney(currentBalance(ledger.settings, ledger.entries));
+        document.getElementById('meal').textContent = fmtMoney(ledger.settings.mealSubsidy);
+        renderEntries(groupEntriesByDate(ledger.entries));
+      } catch (e) {
+        let msg = '网络不可用,请稍后再试';
+        if (e && /还没有同步数据/.test(e.message)) msg = e.message;
+        else if (e && /失效或权限不足/.test(e.message)) msg = e.message;
+        else if (e && /HTTP/.test(e.message)) msg = '拉取失败(' + e.message + '),请检查仓库名与密钥';
+        renderError(msg);
+      }
+    }
+
+    (function init() {
+      const cfg = loadCfg();
+      if (cfg && cfg.owner && cfg.repo && cfg.token) {
+        document.getElementById('in-owner').value = cfg.owner;
+        document.getElementById('in-repo').value = cfg.repo;
+        document.getElementById('in-token').value = cfg.token;
+        loadAndRender(cfg);
+      } else {
+        showConfig();
+      }
+    })();
+  </script>
+</body>
+</html>
